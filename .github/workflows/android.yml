@@ -1,1 +1,58 @@
 
+name: Build Roulette Analyzer APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'RouletteAnalyzer_FullProject.zip'
+      - '.github/workflows/android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Android project
+        run: |
+          mkdir extracted
+          unzip -q RouletteAnalyzer_FullProject.zip -d extracted
+          PROJECT_DIR=$(find extracted -name settings.gradle.kts -printf '%h\n' | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            echo "Could not find settings.gradle.kts in ZIP"
+            exit 1
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project found at: $PROJECT_DIR"
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle -p "$PROJECT_DIR" assembleDebug
+
+      - name: Prepare APK
+        run: |
+          mkdir -p output
+          find "$PROJECT_DIR/app/build/outputs/apk/debug" -name '*.apk' -exec cp {} output/ \;
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: RouletteAnalyzer-APK
+          path: output/*.apk
+
